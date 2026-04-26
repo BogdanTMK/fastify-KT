@@ -1,93 +1,57 @@
-import Fastify from 'fastify';
+import Database from 'better-sqlite3';
 import path from 'path';
-import formbody from '@fastify/formbody';
 import { fileURLToPath } from 'url';
-import fastifyStatic from '@fastify/static';
-import fastifyView from '@fastify/view';
-import pug from 'pug';
-import { getAllUsers, getUserById, createUser, updateUser, deleteUser } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const fastify = Fastify();
 
-fastify.register(formbody);
-fastify.register(fastifyStatic, {
-  root: path.join(__dirname, 'public'),
-  prefix: '/public/',
-});
-
-fastify.register(fastifyView, {
-  engine: { pug },
-  root: path.join(__dirname, 'views'),
-});
-
-fastify.get('/', (req, reply) => {
-  return reply.redirect('/users');
-});
-
-fastify.get('/users', (req, reply) => {
-  const users = getAllUsers();
-  return reply.view('users.pug', { users });
-});
-
-fastify.get('/users/create', (req, reply) => {
-  return reply.view('create.pug');
-});
+const db = new Database(path.join(__dirname, 'database.db'));
 
 
-fastify.post('/users', async (req, reply) => {
-  const { name, email } = req.body;
-
-  try {
-    createUser(name, email);
-    return reply.redirect('/users');
-  } catch (error) {
-    console.error('Ошибка создания пользователя:', error);
-    return reply.view('create.pug', { error: 'Пользователь с таким email уже существует' });
-  }
-});
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE
+  )
+`);
 
 
-fastify.get('/users/:id/edit', (req, reply) => {
-  const user = getUserById(req.params.id);
-  
-  if (!user) {
-    return reply.code(404).send('Пользователь не найден');
-  }
-  
-  return reply.view('edit.pug', { user });
-});
+const count = db.prepare('SELECT COUNT(*) as count FROM users').get();
 
 
-fastify.post('/users/:id/update', async (req, reply) => {
-  const { name, email } = req.body;
-  const { id } = req.params;
+if (count.count === 0) {
+  const insert = db.prepare('INSERT INTO users (name, email) VALUES (?, ?)');
+  insert.run('Маша', 'masha@mail.com');
+  insert.run('Петя', 'petya@mail.com');
+  console.log('Начальные данные добавлены в базу данных');
+}
 
-  try {
-    updateUser(id, name, email);
-    return reply.redirect('/users');
-  } catch (error) {
-    console.error('Ошибка обновления пользователя:', error);
-    const user = getUserById(id);
-    return reply.view('edit.pug', { user, error: 'Пользователь с таким email уже существует' });
-  }
-});
 
-fastify.post('/users/:id/delete', async (req, reply) => {
-  const { id } = req.params;
-  
-  try {
-    deleteUser(id);
-    return reply.redirect('/users');
-  } catch (error) {
-    console.error('Ошибка удаления пользователя:', error);
-    return reply.code(500).send('Ошибка при удалении пользователя');
-  }
-});
+export const getAllUsers = () => {
+  return db.prepare('SELECT * FROM users ORDER BY id').all();
+};
 
-fastify.listen({ port: 3000 }, () => {
-  console.log('Server running on http://localhost:3000');
-  console.log('База данных SQLite подключена');
-});
+export const getUserById = (id) => {
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+};
+
+export const createUser = (name, email) => {
+  const insert = db.prepare('INSERT INTO users (name, email) VALUES (?, ?)');
+  const result = insert.run(name, email);
+  return result.lastInsertRowid;
+};
+
+export const updateUser = (id, name, email) => {
+  const update = db.prepare('UPDATE users SET name = ?, email = ? WHERE id = ?');
+  return update.run(name, email, id);
+};
+
+export const deleteUser = (id) => {
+  const deleteStmt = db.prepare('DELETE FROM users WHERE id = ?');
+  return deleteStmt.run(id);
+};
+
+export default db;
+

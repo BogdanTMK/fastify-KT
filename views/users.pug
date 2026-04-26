@@ -7,6 +7,12 @@ html
 
     ul
       each user in users
-        li #{user.id} - #{user.name} (#{user.email})
+        li 
+          | #{user.id} - #{user.name} (#{user.email})
+          |  
+          a(href=`/users/${user.id}/edit`) Редактировать
+          |  
+          form(action=`/users/${user.id}/delete` method="POST" style="display: inline;" onsubmit="return confirm('Вы уверены?')")
+            button(type="submit") Удалить
 
     a(href="/users/create") Создать пользователя
