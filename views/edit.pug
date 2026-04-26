@@ -1,0 +1,22 @@
+doctype html
+html
+  head
+    title Edit User
+  body
+    h1 Редактировать пользователя
+
+    if error
+      p(style="color: red;") #{error}
+
+    form(action=`/users/${user.id}/update` method="POST")
+      div
+        label Имя:
+        input(type="text" name="name" value=user.name required)
+
+      div
+        label Email:
+        input(type="email" name="email" value=user.email required)
+
+      button(type="submit") Сохранить
+
+    a(href="/users") Назад
